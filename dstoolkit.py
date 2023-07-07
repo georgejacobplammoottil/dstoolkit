@@ -16,7 +16,7 @@ def means(ds,column, verbose, decimals):
     if verbose==1:
         top5=ser.nlargest(5)
         bottom5=ser.nsmallest(5)
-        print(f"******** Variable description- {column} ********")
+        print(f"******** Variable description - {column} ********")
         print("\nSummary & Percentiles")
         print(ser.describe(percentiles=[0.01,0.1,0.25,0.5,0.75,0.9,0.95,0.99]))
         print("\n")
@@ -26,7 +26,7 @@ def means(ds,column, verbose, decimals):
         print("\n")
         print("**************************************************")
     else:
-        print(f"******** Variable description- {column} ********")
+        print(f"******** Variable description - {column} ********")
         print("\nSummary & Percentiles")
         print(ser.describe(percentiles=[0.25,0.5,0.75,0.95]))
         print("\n")
@@ -34,7 +34,7 @@ def means(ds,column, verbose, decimals):
 
 
 #Testing
-means(ds,'salary',1,0)
-means(ds,'salary',0,0)
+means(ds,'remote_ratio',1,2)
+means(ds,'remote_ratio',0,0)
 
 # Create bins of a variable
