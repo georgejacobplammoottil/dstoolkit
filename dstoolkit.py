@@ -129,14 +129,4 @@ def binner(ds, y_column, x_column, no_of_bins, exclusions):
 binner(ds, 'remote_ratio','salary',10,[])
 binner(ds, 'salary','remote_ratio',10,[])
 
-# Required output
-# Bucket label | to be created and assigned
-# Number of observations in bucket | Groupby count
-# Bucket defn - min x | groupby min
-# Bucket defn - max x | groupby max
-# Bucket defn - Distinct x values in bucket |groupby countdistinct
-# Outcomes - mean x | groupby mean
-# Outcomes - min y
-# Outcomes - mean y
-# Outcomes - max y
 
