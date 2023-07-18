@@ -1,0 +1,14 @@
+# pandas groupby, create a ditionary with groups using a comprehension
+import pandas as pd
+import numpy as np
+df = pd.DataFrame({'key1': ['a','a','b','b','a'],
+                   'key2': ['one', 'two', 'one', 'two', 'three'],
+                   'data1': np.random.randn(5),
+                   'data2': np.random.random(5)})
+print(df)
+# by default the groupby selects all remaining columns
+groups = df.groupby('key1')
+res = {key1: group for key1, group in groups}
+#print(res['a'])
+#print(res['b'])
+print(res)
