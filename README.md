@@ -9,8 +9,8 @@ Current functionality
 4. Univariate distribution with percentiles
 5. Verbose for all percentiles and default for quartiles
 
-## binner() - Function to get a bivariate summary
-1. Allows exclusions
+## bucketize() - Function to get a bivariate summary
+1. Allows specifying values to exclude
 2. Keeps tied values in same bucket
 3. Provides averages, bucket definition and observation count
 4. Works for string categorical variables
