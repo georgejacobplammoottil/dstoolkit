@@ -6,6 +6,7 @@ import numpy as np
 from pandas.api.types import is_string_dtype
 pd.options.mode.chained_assignment = None  # default='warn'
 pd.set_option('display.max_rows', 100)
+pd.set_option('display.max_columns', 100)
 
 # Test file
 ds = pd.read_csv("/Users/georgeplammoottil/Documents/Projects/Stat101/ds_salaries.csv")
@@ -51,114 +52,107 @@ def means(ds,column, verbose, decimals):
 means(ds,'salary',1,2)
 means(ds, 'remote_ratio',1,2)
 
-
 # 2. Function that creates bins of a variable for bivariate analysis
 # Allow user to specify number of bins
 # Check for distinct values available for binning
 # Allow user to exclude specific values from X
 # Account for tied values
 
-def get_bucket(df, x_column, y_column, ):
-    df1 = df.groupby(x_column).aggregate(
-        Observations=(x_column, 'count'), 
-        X_min=(x_column,'min'), 
-        X_max=(x_column, 'max'),
-        X_avg = (x_column,'mean'), 
-        Y_avg = (y_column, 'mean'))
-    
-    df1['cumsum'] = df1['Observations'].cumsum()
-    return df1
+def assign_count_for_column_unique_values(df, col):
+    df1 = df[[col]]
+    df2 = df1.groupby(col).aggregate(observations = (col,'count'))
+    df3 = pd.merge(df,df2, on=col, how='left')
+    df4 = df3.sort_values(by=col,ascending=True, na_position='first')
+    df4['cumsum'] = df4['observations'].cumsum()
+    return df4
 
-def bucket_label(df, x_column, no_of_bins):
-
-    df = df.sort_values(by=x_column,ascending=True, na_position='first')
-    totalobs = df['cumsum'].max()
-    df['bin'] = no_of_bins-1
-    cum_bucket_last = df['cumsum'].min()
-
-    for bin in range(no_of_bins):
-        cum_bucket_max = (bin+1)*(totalobs/no_of_bins)
-        df.loc[(cum_bucket_last<=df['cumsum']) & (df['cumsum']<cum_bucket_max), 'bin'] = bin
-        cum_bucket_last = df.loc[df['bin'] == bin, 'cumsum'].max()
-    return df
-
-def binner(ds, y_column, x_column, no_of_bins, exclusions):
-    
-    print("\n**************************************************\n")
-    print(f"*** Bivariate table - {x_column} and {y_column} ****\n")
+def assign_binlabel(df, y_column, x_column, no_of_bins, exclusions, categorical):
     # Keep relevant columns
-    bin_ds = ds[[x_column, y_column]]
+    bin_ds = df[[x_column, y_column]]
     distinct_values = bin_ds[x_column].nunique()
 
     if bin_ds[x_column].dtype.kind not in 'biufc':
         bin_ds[x_column] = bin_ds[x_column].astype(str)
-        xisstring=1
-    else:
-        xisstring=0
+        cateogrical=1
 
     # Apply exclusions for X
     for exclusion in exclusions:
         bin_ds = bin_ds[bin_ds[x_column] != exclusion]
-        
-    # Sort and Group rows based on value
-    if xisstring==0:
-        bin_ds_sorted = bin_ds.sort_values(by=x_column,ascending=True, na_position='first')
-        bin_ds_distinct = get_bucket(bin_ds_sorted, x_column, y_column)
-    
-    # Handling repeated values - Check if distinct values < number of bins specified 
-    if xisstring==0 and distinct_values < no_of_bins:
-        print(f" {distinct_values} unique values available to create {no_of_bins} bins")
-        no_of_bins = distinct_values
-        res = bin_ds_distinct.groupby(x_column).aggregate(
-            Observations=('Observations', 'sum'), 
-            min=('X_min','min'), 
-            max=('X_max', 'max'),
-            avg = ('X_avg','mean'), 
-            yavg = ('Y_avg', 'mean'))
-        res['cumsum'] = res['Observations'].cumsum()
 
-    elif xisstring==0: 
-        # Handling repeated values - if distinct values>no of bins, roll up to distinct values and bin
-        bin_ds_bucket = bucket_label(bin_ds_distinct, x_column, no_of_bins)
-        
-        res = bin_ds_bucket.groupby('bin').aggregate(
-            observations=('Observations', 'sum'), 
-            min=('X_min','min'), 
-            max=('X_max', 'max'),
-            avg = ('X_avg','mean'), 
-            yavg = ('Y_avg', 'mean'))
-        res['cumsum'] = res['observations'].cumsum()
+    res1 = assign_count_for_column_unique_values(bin_ds, x_column)
+
+    # If no of buckets < unique count OR variable is categorical, binlabel = x_xolumn
+    if distinct_values<no_of_bins or categorical==1:
+        res1['binlabel']=res1[x_column]
+        aggregations = {x_column: ['count'], y_column: 'mean'}
+        colnames = ['observations', 'y_mean']
     
-    if xisstring==0:
-        res.rename(columns = {
-            'min': x_column+'_min', 
-            'max': x_column+'_max',
-            'avg': x_column+'_mean', 
-            'yavg': y_column+'_mean',
-            'cumsum': 'cummulative count'}, 
-            inplace = True)
-    else:
-        # Handling categorical string variables
-        res = bin_ds.groupby(x_column).aggregate(
-            Observations=(x_column, 'count'), 
-                yavg = (y_column, 'mean')).sort_values(
-            by='Observations',
-            ascending=False, 
-            na_position='first')
+    # If no of buckets greater than unique count, use logic
+    else: 
+        totalobs = res1['cumsum'].max()
+        res1['binlabel'] = no_of_bins-1
+        cum_bucket_last = res1['cumsum'].min()
+
+        for bin in range(no_of_bins):
+            cum_bucket_max = (bin+1)*(totalobs/no_of_bins)
+            res1.loc[(cum_bucket_last<=res1['cumsum']) & (res1['cumsum']<cum_bucket_max), 'binlabel'] = bin
+            cum_bucket_last = res1.loc[res1['binlabel'] == bin, 'cumsum'].max()
         
-        res['cumsum'] = res['Observations'].cumsum()
-        
-        res.rename(columns = { 
-            'yavg': y_column+'_mean',
-            'cumsum': 'cummulative count'}, 
-            inplace = True)
+        aggregations = {x_column: ['count','min','max','mean'], y_column: 'mean'}
+        colnames = ['observations', 'x_min', 'x_max', 'x_mean', 'y_mean']
     
-    print(res)
+    return(res1, aggregations, colnames)
+
+def roll_up(df, x_column, aggdict, res_col_names):
+    df1 = df.groupby(x_column).aggregate(aggdict)
+    df1.columns = res_col_names
+    df1['cumsum'] = df1['observations'].cumsum()
+    return df1
+
+def bucketize(df, y_column, x_column, no_of_bins, exclusions, categorical):
     print("\n**************************************************\n")
+    print(f"*** Bivariate table - {x_column} and {y_column} ****\n")
+    result1 = assign_binlabel(df, y_column, x_column, no_of_bins, exclusions, categorical)
+    result2 = roll_up(result1[0],'binlabel', result1[1],result1[2])
+    print(result2)
+    print("\n**************************************************\n")
+    return result2
 
 
-binner(ds, 'remote_ratio','salary',10,[])
-binner(ds, 'salary','remote_ratio',10,[])
-binner(ds, 'remote_ratio','job_title',10,[])
+#Testing binner outcome on continuous and string variables
+bucketize(ds, 'remote_ratio', 'salary', 10, [], 0)
+bucketize(ds, 'salary','remote_ratio',10,[],0)
+bucketize(ds, 'salary','job_title',10,[],1)
+bucketize(ds, 'remote_ratio','company_size',10,[],1)
 
 
+# 3. Function to bootstrap samples from dataframe
+def samples(ds, partition, splits):
+    if partition=='random':
+        ds['splitindex'] = np.random.random(ds.shape[0])  
+    else:
+        ds['splitindex']= ds[partition]
+        splits = ds['splitindex'].nunique()
+
+
+    ds = ds.sort_values(by='splitindex',ascending=True, na_position='first')
+    ds['cumsum'] = ds['splitindex'].value_counts().cumsum()
+
+    
+    if splits>0:
+
+        res = bucket_label(ds, 'splitindex', splits)
+    else:
+        splits = ds['splitindex'].nunique()
+        res = bucket_label(ds, 'splitindex', splits)
+
+
+    print("samples done")
+
+#samples(ds,'random',10)
+#samples(ds,'employment_type',0)
+
+#temp = assign_label_from_column_unique_values(ds,'job_title')
+#means(temp,'observations', 1,0)
+
+# 4. Function to compare multiple dataframes
