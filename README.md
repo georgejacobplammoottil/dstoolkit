@@ -14,3 +14,7 @@ Current functionality
 2. Keeps tied values in same bucket
 3. Provides averages, bucket definition and observation count
 4. Works for string categorical variables
+
+## samples() - Function to partition the data
+1. Allows user to specify the number of partitions
+2. Partitions can be random or based on column values
