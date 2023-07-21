@@ -30,7 +30,7 @@ def means(ds,column, verbose, decimals):
         rows = len(ser)
         print(f"******** Variable description - {column} ********")
         print("\nSummary & Percentiles\n")
-        if unique_count<10:
+        if unique_count<20:
             print(f"{unique_count} Unique_values :", unique_values, " | Total rows : ",rows, "\n")
         else:
             print(f"There are {rows} rows and {unique_count} unique values for {column}\n")
@@ -66,9 +66,15 @@ def assign_count_for_column_unique_values(df, col):
     df4['cumsum'] = df4['observations'].cumsum()
     return df4
 
-def assign_binlabel(df, y_column, x_column, no_of_bins, exclusions, categorical):
+def assign_binlabel(df, cols, no_of_bins, exclusions, categorical):
     # Keep relevant columns
-    bin_ds = df[[x_column, y_column]]
+    if len(cols)==1:
+        x_column = cols[0]
+    else:
+        y_column = cols[0]
+        x_column = cols[1]
+    
+    bin_ds = df[cols]
     distinct_values = bin_ds[x_column].nunique()
 
     if bin_ds[x_column].dtype.kind not in 'biufc':
@@ -84,8 +90,12 @@ def assign_binlabel(df, y_column, x_column, no_of_bins, exclusions, categorical)
     # If no of buckets < unique count OR variable is categorical, binlabel = x_xolumn
     if distinct_values<no_of_bins or categorical==1:
         res1['binlabel']=res1[x_column]
-        aggregations = {x_column: ['count'], y_column: 'mean'}
-        colnames = ['observations', 'y_mean']
+        if len(cols)==2:
+            aggregations = {x_column: ['count'], y_column: 'mean'}
+            colnames = ['observations', 'y_mean']
+        else:
+            aggregations = {x_column: ['count']}
+            colnames = ['observations']
     
     # If no of buckets greater than unique count, use logic
     else: 
@@ -98,8 +108,12 @@ def assign_binlabel(df, y_column, x_column, no_of_bins, exclusions, categorical)
             res1.loc[(cum_bucket_last<=res1['cumsum']) & (res1['cumsum']<cum_bucket_max), 'binlabel'] = bin
             cum_bucket_last = res1.loc[res1['binlabel'] == bin, 'cumsum'].max()
         
-        aggregations = {x_column: ['count','min','max','mean'], y_column: 'mean'}
-        colnames = ['observations', 'x_min', 'x_max', 'x_mean', 'y_mean']
+        if len(cols)==2:
+            aggregations = {x_column: ['count','min','max','mean'], y_column: 'mean'}
+            colnames = ['observations', 'x_min', 'x_max', 'x_mean', 'y_mean']
+        else:
+            aggregations = {x_column: ['count','min','max','mean']}
+            colnames = ['observations', 'x_min', 'x_max', 'x_mean']
     
     return(res1, aggregations, colnames)
 
@@ -109,10 +123,11 @@ def roll_up(df, x_column, aggdict, res_col_names):
     df1['cumsum'] = df1['observations'].cumsum()
     return df1
 
-def bucketize(df, y_column, x_column, no_of_bins, exclusions, categorical):
+def bucketize(df,y_column, x_column, no_of_bins, exclusions, categorical):
     print("\n**************************************************\n")
     print(f"*** Bivariate table - {x_column} and {y_column} ****\n")
-    result1 = assign_binlabel(df, y_column, x_column, no_of_bins, exclusions, categorical)
+    cols = [y_column, x_column]
+    result1 = assign_binlabel(df, cols, no_of_bins, exclusions, categorical)
     result2 = roll_up(result1[0],'binlabel', result1[1],result1[2])
     print(result2)
     print("\n**************************************************\n")
@@ -126,7 +141,7 @@ bucketize(ds, 'salary','job_title',10,[],1)
 bucketize(ds, 'remote_ratio','company_size',10,[],1)
 
 
-# 3. Function to bootstrap samples from dataframe
+# 3. Function to bootstrap samples from dataframe based on column values or random 
 def samples(ds, partition, splits):
     if partition=='random':
         ds['splitindex'] = np.random.random(ds.shape[0])  
@@ -134,25 +149,18 @@ def samples(ds, partition, splits):
         ds['splitindex']= ds[partition]
         splits = ds['splitindex'].nunique()
 
+    result = assign_binlabel(ds,['splitindex'], 10, [], 0)
 
-    ds = ds.sort_values(by='splitindex',ascending=True, na_position='first')
-    ds['cumsum'] = ds['splitindex'].value_counts().cumsum()
+    res = pd.merge(ds, result[0], left_index=True, right_index=True)
+    res1=res.drop(columns=['splitindex_y'])
+    res2=res1.rename(columns={"splitindex_x": "splitindex","binlabel": "partition"})
 
-    
-    if splits>0:
-
-        res = bucket_label(ds, 'splitindex', splits)
-    else:
-        splits = ds['splitindex'].nunique()
-        res = bucket_label(ds, 'splitindex', splits)
+    return res2
 
 
-    print("samples done")
-
-#samples(ds,'random',10)
-#samples(ds,'employment_type',0)
-
-#temp = assign_label_from_column_unique_values(ds,'job_title')
-#means(temp,'observations', 1,0)
+# Testing splitting dataframe into 10 random samples
+temp = samples(ds,'random',10)
+means(ds, 'salary',0,0)
+print(temp.groupby('partition').aggregate(obs = ('salary','count'), salary_sample_mean = ('salary','mean')))
 
 # 4. Function to compare multiple dataframes
